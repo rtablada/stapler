@@ -42,7 +42,7 @@ class Attachment
 
 	/**
 	 * An instance of the resizer library that's being used for image processing.
-	 * 
+	 *
 	 * @var Codesleeve\Stapler\File\Image\Resizer
 	 */
 	protected $resizer;
@@ -50,7 +50,7 @@ class Attachment
 	/**
 	 * An IOWrapper instance for converting file input formats (symfony uploaded file object
 	 * arrays, string, etc) into an instance of Codesleeve\Stapler\UploadedFile.
-	 * 
+	 *
 	 * @var Codesleeve\Stapler\IOWrapper
 	 */
 	protected $IOWrapper;
@@ -92,25 +92,25 @@ class Attachment
 	 * @param mixed $value
 	 */
 	public function __set($name, $value)
-    {
-        $this->config->$name = $value;
-    }
+	{
+		$this->config->$name = $value;
+	}
 
-    /**
-     * Handle the dynamic retrieval of attachment options.
-     * Style options will be converted into a php stcClass.
-     *
-     * @param  string $optionName
-     * @return mixed
-     */
-    public function __get($optionName)
-    {
+	/**
+	 * Handle the dynamic retrieval of attachment options.
+	 * Style options will be converted into a php stcClass.
+	 *
+	 * @param  string $optionName
+	 * @return mixed
+	 */
+	public function __get($optionName)
+	{
 		return $this->config->$optionName;
-    }
+	}
 
-    /**
+	/**
 	 * Mutator method for the uploadedFile property.
-	 * Accepts the following inputs: 
+	 * Accepts the following inputs:
 	 * - An absolute string url (for fetching remote files).
 	 * - An array (data parsed from the $_FILES array),
 	 * - A symfony uploaded file object.
@@ -148,7 +148,7 @@ class Attachment
 	 * Mutator method for the interpolator property.
 	 *
 	 * @param Codesleeve\Stapler\Interpolator $interpolator
-	 * @return void 
+	 * @return void
 	 */
 	public function setInterpolator(Interpolator $interpolator)
 	{
@@ -211,11 +211,11 @@ class Attachment
 	}
 
 	/**
-	 * Accessore method for the underlying 
+	 * Accessore method for the underlying
 	 * instance (Eloquent model) object this attachment
 	 * is defined on.
-	 * 
-	 * @return Eloquent 
+	 *
+	 * @return Eloquent
 	 */
 	public function getInstance()
 	{
@@ -235,8 +235,8 @@ class Attachment
 
 	/**
 	 * Accessor method for the Config property.
-	 * 
-	 * @return array 
+	 *
+	 * @return array
 	 */
 	public function getConfig()
 	{
@@ -245,8 +245,8 @@ class Attachment
 
 	/**
 	 * Mutator method for the IOWrapper property.
-	 * 
-	 * @param Codesleeve\Stapler\IOWrapper $IOWrapper 
+	 *
+	 * @param Codesleeve\Stapler\IOWrapper $IOWrapper
 	 */
 	public function setIOWrapper($IOWrapper)
 	{
@@ -255,8 +255,8 @@ class Attachment
 
 	/**
 	 * Accessor method for the QueuedForDeletion property.
-	 * 
-	 * @return array 
+	 *
+	 * @return array
 	 */
 	public function getQueuedForDeletion()
 	{
@@ -265,7 +265,7 @@ class Attachment
 
 	/**
 	 * Mutator method for the QueuedForDeletion property.
-	 * 
+	 *
 	 * @param array $array
 	 */
 	public function setQueuedForDeletion($array)
@@ -326,7 +326,7 @@ class Attachment
 	 * Returns the creation time of the file as originally assigned to this attachment's model.
 	 * Lives in the <attachment>_created_at attribute of the model.
 	 * This attribute may conditionally exist on the model, it is not one of the four required fields.
-     *
+	 *
 	 * @return datetime
 	 */
 	public function createdAt()
@@ -337,7 +337,7 @@ class Attachment
 	/**
 	 * Returns the last modified time of the file as originally assigned to this attachment's model.
 	 * Lives in the <attachment>_updated_at attribute of the model.
-     *
+	 *
 	 * @return datetime
 	 */
 	public function updatedAt()
@@ -348,7 +348,7 @@ class Attachment
 	/**
 	 * Returns the content type of the file as originally assigned to this attachment's model.
 	 * Lives in the <attachment>_content_type attribute of the model.
-     *
+	 *
 	 * @return string
 	 */
 	public function contentType()
@@ -359,7 +359,7 @@ class Attachment
 	/**
 	 * Returns the size of the file as originally assigned to this attachment's model.
 	 * Lives in the <attachment>_file_size attribute of the model.
-     *
+	 *
 	 * @return integer
 	 */
 	public function size()
@@ -370,7 +370,7 @@ class Attachment
 	/**
 	 * Returns the name of the file as originally assigned to this attachment's model.
 	 * Lives in the <attachment>_file_name attribute of the model.
-     *
+	 *
 	 * @return string
 	 */
 	public function originalFilename()
@@ -459,10 +459,40 @@ class Attachment
 		$this->flushWrites();
 	}
 
+	public function rotate($degrees = 90)
+	{
+		$rotator = function($file, $imagine) use ($degrees) {
+			$image = $imagine->open($file->getRealPath());
+			$image->rotate($degrees);
+
+			return $image;
+		};
+
+		$this->alterImage($rotator);
+	}
+
+	public function alterImage($callable)
+	{
+		$fileLocation = $this->getFileLocation();
+		$file = $this->IOWrapper->make($fileLocation);
+		$style = new \stdClass();
+		$style->value = $callable;
+		$style->convert_options = [];
+
+		if ($file->isImage()) {
+			$result = $this->resizer->resize($file, $style);
+
+			$filePath = $this->path();
+			$this->move($result, $filePath);
+		}
+
+		$this->reprocess();
+	}
+
 	/**
 	 * Rebuild the images for this attachment.
 	 *
-	 * @return void 
+	 * @return void
 	 */
 	public function reprocess()
 	{
@@ -470,9 +500,9 @@ class Attachment
 			return;
 		}
 
-		foreach ($this->styles as $style) 
+		foreach ($this->styles as $style)
 		{
-			$fileLocation = $this->storage == 'filesystem' ? $this->path() : $this->url();
+			$fileLocation = $this->getFileLocation();
 			$file = $this->IOWrapper->make($fileLocation);
 
 			if ($style->value && $file->isImage()) {
@@ -488,15 +518,15 @@ class Attachment
 	}
 
 	/**
-     * Return the class type of the attachment's underlying
-     * model instance.
-     * 
-     * @return string
-     */
-    public function getInstanceClass()
-    {
-    	return get_class($this->instance);
-    }
+	 * Return the class type of the attachment's underlying
+	 * model instance.
+	 *
+	 * @return string
+	 */
+	public function getInstanceClass()
+	{
+		return get_class($this->instance);
+	}
 
 	/**
 	 * Process the queuedForWrite que.
@@ -507,7 +537,7 @@ class Attachment
 	{
 		foreach ($this->queuedForWrite as $style)
 		{
-      		if ($style->value && $this->uploadedFile->isImage()) {
+			if ($style->value && $this->uploadedFile->isImage()) {
 				$file = $this->resizer->resize($this->uploadedFile, $style);
 			}
 			else {
@@ -583,15 +613,15 @@ class Attachment
 		}, $stylesToClear);
 
 		$this->queuedForDeletion = array_merge($this->queuedForDeletion, $filePaths);
-    }
+	}
 
-    /**
-     * Add all uploaded files (across all image styles) to the queuedForDeletion queue.
-     *
-     * @return void
-     */
-    protected function queueAllForDeletion()
-    {
+	/**
+	 * Add all uploaded files (across all image styles) to the queuedForDeletion queue.
+	 *
+	 * @return void
+	 */
+	protected function queueAllForDeletion()
+	{
 		if (!$this->originalFilename()) {
 			return;
 		}
@@ -610,18 +640,28 @@ class Attachment
 		$this->instanceWrite('file_size', NULL);
 		$this->instanceWrite('content_type', NULL);
 		$this->instanceWrite('updated_at', NULL);
-    }
+	}
 
-    /**
-     * Set an attachment attribute on the underlying model instance.
-     *
-     * @param  string $property
-     * @param  mixed $value
-     * @return void
-     */
-    protected function instanceWrite($property, $value)
-    {
-    	$fieldName = "{$this->name}_{$property}";
-    	$this->instance->setAttribute($fieldName, $value);
-    }
+	/**
+	 * Set an attachment attribute on the underlying model instance.
+	 *
+	 * @param  string $property
+	 * @param  mixed $value
+	 * @return void
+	 */
+	protected function instanceWrite($property, $value)
+	{
+		$fieldName = "{$this->name}_{$property}";
+		$this->instance->setAttribute($fieldName, $value);
+	}
+
+	/**
+	 * Get the current file location based on type of storage.
+	 *
+	 * @return string
+	 */
+	protected function getFileLocation()
+	{
+		return $this->storage == 'filesystem' ? $this->path() : $this->url();
+	}
 }
